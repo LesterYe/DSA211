@@ -105,7 +105,10 @@ The data do not provide sufficient evidence that mean spending for lunch is diff
 prop.test(c(136, 224), n=c(240, 260),  alternative="two.sided",
                       conf.level=0.99, correct=FALSE)
 "The data provide sufficient evidence to show difference between males and females 
-in the proportion who enjoy shopping for clothing at the 0.01 level of significance"
+in the proportion who enjoy shopping for clothing at the 0.01 level of significance
+Consist of condfidence interval
+"
+
 
 
 # week 3
@@ -168,8 +171,23 @@ SingVaR1 <- meanR+AbsVaR
 #Parametric 99% VaR of one day for SingTel investment 4000 shares at $3.30
 SingVaR2 <- sd(rate)*4000*3.30*qnorm(0.99, 0, 1)
 
+#Bootstrap VaR rerun with seed and rng
+library(boot)
+boot.fn <- function(da, ind){
+  AbsVaR <- -1*quantile(da[ind], 0.015)* (9000 * 3.35 + 6000 * 9.45)
+  meanR <- mean(da[ind])*(9000 * 3.35 + 6000 * 9.45)
+  p_VaR1 <- meanR+AbsVaR
+  return(p_VaR1)
+}
 
-# week 4
+
+bsvar_result <- boot(rate, boot.fn, R=80000)
+bsvar_result
+
+c(quantile(bsvar_result$t, 0.025), quantile(bsvar_result$t, 0.975))
+"The 95% Bootstrap percentile confidence interval for the one-day 98.5% VaR for this portfolio is (1424.650, 1966.874). (3 d.p.)"
+
+# week 4 simple linear regression
 
 STAT101 <- read.csv("STAT101.csv")
 datatest <- STAT101
@@ -224,6 +242,8 @@ BIC(lm.sale3)
 lm.sale4 <- lm(sales~TV*radio, data=adv)
 summary(lm.sale4)
 attach(adv)
+
+#residual analysis
 plot(lm.sale4$fitted.values, residuals(lm.sale4),
      main="Relationship between predicted sales and residuals",
      xlab="sales", ylab="residuals") # residual vs y
@@ -237,11 +257,19 @@ library(fitdistrplus)
 fnorm <- fitdist(residuals(lm.sale4), distr="norm")
 summary(fnorm)
 plot(fnorm)
+
+"Based on the each of the chart all the assumption of a linear regression are met.
+No particular pattern is found in the residuals vs Value plot.
+P-P plot and Q-Q plot show no deviations from normal assumption.
+Refer to following R-outputs above"
+
 confint(lm.sale4, level=0.95)
+# confidence interval
 predict(lm.sale4, data.frame(TV=20, radio=15), interval="confidence", level=0.95)
+# prediction interval
 predict(lm.sale4, data.frame(TV=20, radio=15), interval="prediction", level=0.95)
 
-# quadratic relationship
+# quadratic relationship/ polynomial terms
 library(ISLR)
 lm.carseat5=lm(Sales~CompPrice+Income+Advertising+
                  Price+ShelveLoc+Age+I(Price^2), data=Carseats)# I() don't include based term, Poly include
@@ -268,6 +296,7 @@ glm.pred5.1 <- rep("Predicted No Default", 10000)
 glm.pred5.1[glm.prob5> 0.5] <- "Predicted Default"
 table(glm.pred5.1, default)
 
+
 # logistics regression prediction - manual
 
 ff <- function(a, b, x) {
@@ -277,6 +306,22 @@ ff <- function(a, b, x) {
 }
 r1 <-ff(-10.65, 0.0055, 1000)
 r1
+
+# logistics with interation term manual X1,X2
+ff <- function(a, b1,b2,b3,x1,x2) {
+  aa <- exp(a+b1*x1+b2*x2 + b3*x1*x2)
+  ff <- aa/(1+aa)
+  ff
+}
+r1 <-ff( -4.5, 0.23, 0.16,0.0007,14,9 )
+r1
+"The loan approval probability for an applicant with a 14% down payment and 
+a 9% income-to-loan ratio is 0.5617."
+
+# getting X2
+aa <- 0.7/(1-0.7)
+x2 <- (log(aa)-(-4.5+0.23*16))/(0.16+0.0007*16)
+x2
 
 # Plot logistics regression - manual
 
@@ -309,6 +354,14 @@ dev_stats(y,predict(glm.re, data.frame(x=c(24, 27, 29, 28, 32)), type="response"
 ds <- dev_stats(y,predict(glm.re, data.frame(x=c(24, 27, 29, 28, 32)), type="response"))
 resdev <- sum(ds^2)
 resdev
+
+# false positive - predict right but true wrong
+"Obersavation 2 prediction is wrong and the error type is false positive
+since it is predicted as approve but the application is not approved"
+
+# false negative - predict wrong but true right
+"Obersavation 3 prediction is wrong and the error type is false negative
+since it is predicted as not approve but the application is approve"
 
 
 # week 9
@@ -402,6 +455,11 @@ reg3.summary <- summary(regfit3.all)
 regfit4.all <- regsubsets(Salary~., Hit, nvmax=19, method="forward") # work even if n<p
 reg4.summary <- summary(regfit4.all)
 
+# best subset prediction - recreate model and predict
+l1_final <- lm(mpg~weight+year+origin,Auto_data)
+predict(l1_final, data.frame(cylinders=8, displacement=390, horsepower=160, weight=3700,
+                             acceleration=8.5, year=70, origin ="Yes"
+), interval="prediction", level=0.95)
 
 # week 11
 RNGkind(sample.kind="Rounding")
@@ -513,6 +571,7 @@ lasso.coef[lasso.coef!=0]
 
 # week 12
 
+
 # Regression tree
 library(tree)
 library(MASS)
@@ -557,6 +616,22 @@ plot(prune.bostonall)
 title ("Pruned Regression Tree for all Boston data")
 text(prune.bostonall, pretty=0)
 
+# R deviance
+d1 <- -2*(3*log(0.6)+2*log(0.4)) # e.g. countNo*log(countNo/n)
+d2 <- -2*(1*log(1/6)+5*log(5/6))
+d1
+d2
+
+#residual mean deviance
+
+RMD <- (d1+d2)/(11-2) # sum of all deviance/(n-terminal nodes)
+RMD
+
+#misclassification error rate.
+
+MER <- (5*0.4+6*0.1667)/11 # error count/n
+MER
+
 # Classification Trees
 library(ISLR)
 attach(Carseats)
@@ -584,6 +659,23 @@ sensitivity1
 totalerror1 <- (table1[1,2]+table1[2,1])/sum(table1)  # total error rate
 totalerror1
 table1
+
+# confusion matrix
+
+glm.prob5 <- predict(l2, type="response")
+glm.pred5.1 <- rep("Predicted Not payable", 104)
+glm.pred5.1[glm.prob5> 0.6] <- "Predicted payable" # adjust threshold accordingly
+table1 <-table(glm.pred5.1, business_data$Bonus)
+table1
+
+# Sensitivity,Specificity
+Sensitivity <- (table1[2,2]/(table1[1,2]+table1[2,2])) # yes-yes / all true yes
+Sensitivity
+Specificity<- (table1[1,1]/(table1[1,1]+table1[2,1])) # no-no/ all true no
+Specificity
+overerror <- (table1[1,2]+table1[2,1])/sum(table1) #all wrong/all
+overerror
+
 
 # consider whether pruning the tree can improve the results
 set.seed(3)
